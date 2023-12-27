@@ -147,6 +147,20 @@ func (sr *SearchResults) InitSegmentStatsResults(mOps []*structs.MeasureAggregat
 	sr.updateLock.Unlock()
 }
 
+func (sr *SearchResults) InitMathSegmentStatsResults(mOps []*structs.MathEvaluator) {
+	sr.updateLock.Lock()
+	mFuncs := make([]string, len(mOps))
+	for i, op := range mOps {
+		mFuncs[i] = op.String()
+	}
+	retVal := make(map[string]utils.CValueEnclosure, len(mOps))
+	sr.segStatsResults = &segStatsResults{
+		measureResults:   retVal,
+		measureFunctions: mFuncs,
+	}
+	sr.updateLock.Unlock()
+}
+
 // checks if total count has been set and if any more raw records are needed
 // if retruns true, then only aggregations / sorts are needed
 func (sr *SearchResults) ShouldContinueRRCSearch() bool {
@@ -229,6 +243,42 @@ func (sr *SearchResults) AddError(err error) {
 	sr.updateLock.Lock()
 	sr.AllErrors = append(sr.AllErrors, err)
 	sr.updateLock.Unlock()
+}
+
+func (sr *SearchResults) UpdateMathSegementStats(sstMap map[string]*structs.SegStats, mathOperations []*structs.MathEvaluator,
+	runningEvalStats map[string]interface{}) error {
+
+	sr.updateLock.Lock()
+	defer sr.updateLock.Unlock()
+	for _, mathOp := range mathOperations {
+
+		if len(sstMap) == 0 {
+			continue
+		}
+
+		mathFunc := mathOp.MathFunc
+		mathCol := mathOp.MathCol
+
+		_, ok := sstMap[mathCol]
+		if !ok && mathOp.ValueColRequest == nil {
+			log.Debugf("applyAggOpOnSegments sstMap was nil for mathCol %v", mathCol)
+			continue
+		}
+
+		switch mathFunc {
+		case utils.Round:
+			if mathOp.ValueColRequest != nil {
+				enclosure, err := aggregations.ComputeMathEvalForRound(mathOp, sstMap, sr.segStatsResults.measureResults)
+				if err != nil {
+					return fmt.Errorf("UpdateSegmentStats: %v", err)
+				}
+				sr.segStatsResults.measureResults[mathOp.String()] = *enclosure
+				continue
+			}
+		}
+	}
+
+	return nil
 }
 
 func (sr *SearchResults) UpdateSegmentStats(sstMap map[string]*structs.SegStats, measureOps []*structs.MeasureAggregator,

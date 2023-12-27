@@ -212,6 +212,58 @@ func ComputeAggEvalForSum(measureAgg *structs.MeasureAggregator, sstMap map[stri
 	return nil
 }
 
+func ComputeMathEvalForRound(mathOp *structs.MathEvaluator, sstMap map[string]*structs.SegStats, measureResults map[string]utils.CValueEnclosure) (*utils.CValueEnclosure, error) {
+	fields := mathOp.ValueColRequest.GetFields()
+	if len(fields) != 1 {
+		return nil, fmt.Errorf("ComputeMathEvalForRound: Incorrect number of fields for aggCol: %v", mathOp.String())
+	}
+
+	fmt.Println("fields: ", fields)
+
+	sst, ok := sstMap[fields[0]]
+	if !ok {
+		return nil, fmt.Errorf("ComputeMathEvalForRound: applyAggOpOnSegments sstMap was nil for aggCol %v", mathOp.MathCol)
+	}
+	fieldToValue := make(map[string]utils.CValueEnclosure)
+
+	roundVal := float64(0)
+
+	fmt.Println("sst.Records: ", sst.Records)
+
+	for _, eVal := range sst.Records {
+		fieldToValue[fields[0]] = *eVal
+		boolResult, err := mathOp.ValueColRequest.BooleanExpr.Evaluate(fieldToValue)
+		fmt.Println("boolResult: ", boolResult)
+		fmt.Println(eVal)
+		fmt.Println(mathOp.ValueColRequest)
+		if err != nil {
+			return nil, fmt.Errorf("ComputeMathEvalForRound: there are some errors in the eval function that is inside the round function: %v", err)
+		}
+
+		if boolResult {
+			eValFloat, err := mathOp.ValueColRequest.EvaluateToFloat(fieldToValue)
+			if err != nil {
+				return nil, fmt.Errorf("ComputeMathEvalForRound: can not get the float value: %v", err)
+			}
+			roundVal = eValFloat
+		}
+	}
+	enclosure, exists := measureResults[mathOp.String()]
+	if !exists {
+		enclosure = utils.CValueEnclosure{
+			Dtype: utils.SS_DT_FLOAT,
+			CVal:  float64(0),
+		}
+		measureResults[mathOp.String()] = enclosure
+	}
+
+	enclosure.CVal = roundVal
+	fmt.Println("roundVal: ", roundVal)
+	measureResults[mathOp.String()] = enclosure
+
+	return &enclosure, nil
+}
+
 func ComputeAggEvalForCount(measureAgg *structs.MeasureAggregator, sstMap map[string]*structs.SegStats, measureResults map[string]utils.CValueEnclosure) error {
 
 	countVal := int64(0)

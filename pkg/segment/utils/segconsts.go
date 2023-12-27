@@ -284,6 +284,14 @@ const (
 	Values
 )
 
+type MathFunctions int
+
+const (
+	Round MathFunctions = iota + 1
+	Floor
+	Ceil
+)
+
 type RangeFunctions int
 
 const (

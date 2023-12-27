@@ -107,6 +107,12 @@ func getQueryType(sNode *structs.SearchNode, aggs *structs.QueryAggregators) (st
 	if aggs != nil && aggs.MeasureOperations != nil && aggs.GroupByRequest == nil {
 		return sNode.NodeType, structs.SegmentStatsCmd
 	}
+
+	if aggs != nil && aggs.MathOperations != nil && aggs.GroupByRequest == nil {
+		fmt.Println("aggs.MathOperations", aggs.MathOperations)
+		return sNode.NodeType, structs.SegmentStatsCmd
+	}
+
 	return sNode.NodeType, structs.RRCCmd
 }
 
@@ -124,6 +130,7 @@ func ApplyFilterOperator(node *structs.ASTNode, timeRange *dtu.TimeRange, aggs *
 	querytracker.UpdateQTUsage(nonKibanaIndices, searchNode, aggs)
 	parallelismPerFile := int64(1)
 	_, qType := getQueryType(searchNode, aggs)
+	fmt.Println("qType", qType)
 	querySummary := summary.InitQuerySummary(summary.LOGS, qid)
 	pqid := querytracker.GetHashForQuery(searchNode)
 	defer querySummary.LogSummaryAndEmitMetrics(qid, pqid, containsKibana, qc.Orgid)
@@ -161,6 +168,7 @@ func ApplyFilterOperator(node *structs.ASTNode, timeRange *dtu.TimeRange, aggs *
 	case structs.RRCCmd, structs.GroupByCmd:
 		bucketLimit := MAX_GRP_BUCKS
 		if aggs != nil {
+			fmt.Println("NodeResults aggs", aggs.MathOperations)
 			if aggs.BucketLimit != 0 && aggs.BucketLimit < MAX_GRP_BUCKS {
 				bucketLimit = aggs.BucketLimit
 			}
@@ -383,10 +391,20 @@ func getNodeResultsForSegmentStatsCmd(queryInfo *queryInformation, sTime time.Ti
 	querySummary.UpdateRemainingDistributedQueries(numDistributed)
 	log.Infof("qid=%d, Recieved %+v query segment aggs, with %+v raw search %v distributed, query elapsed time: %+v",
 		queryInfo.qid, len(sortedQSRSlice), numRawSearch, numDistributed, time.Since(sTime))
+
+	fmt.Println("queryInfo", *queryInfo)
+
 	if queryInfo.aggs.MeasureOperations != nil {
 		allSegFileResults.InitSegmentStatsResults(queryInfo.aggs.MeasureOperations)
-		applyAggOpOnSegments(sortedQSRSlice, allSegFileResults, queryInfo.qid, querySummary, queryInfo.sNodeType, queryInfo.aggs.MeasureOperations)
+		applyAggOpOnSegments(sortedQSRSlice, allSegFileResults, queryInfo.qid, querySummary, queryInfo.sNodeType, queryInfo.aggs.MeasureOperations, queryInfo.aggs.MathOperations)
 	}
+
+	if queryInfo.aggs.MathOperations != nil {
+		allSegFileResults.InitMathSegmentStatsResults(queryInfo.aggs.MathOperations)
+		applyMathOpOnSegments(sortedQSRSlice, allSegFileResults, queryInfo.qid, querySummary, queryInfo.sNodeType, queryInfo.aggs.MathOperations)
+		applyAggOpOnSegments(sortedQSRSlice, allSegFileResults, queryInfo.qid, querySummary, queryInfo.sNodeType, queryInfo.aggs.MeasureOperations, queryInfo.aggs.MathOperations)
+	}
+
 	querySummary.UpdateQueryTotalTime(time.Since(sTime), allSegFileResults.GetNumBuckets())
 	queryType := GetQueryType(queryInfo.qid)
 	aggMeasureRes, aggMeasureFunctions, aggGroupByCols, bucketCount := allSegFileResults.GetSegmentStatsResults(0)
@@ -672,7 +690,7 @@ func getAllRotatedSegmentsInAggs(queryInfo *queryInformation, aggs *structs.Quer
 }
 
 func applyAggOpOnSegments(sortedQSRSlice []*querySegmentRequest, allSegFileResults *segresults.SearchResults, qid uint64, qs *summary.QuerySummary,
-	searchType structs.SearchNodeType, measureOperations []*structs.MeasureAggregator) {
+	searchType structs.SearchNodeType, measureOperations []*structs.MeasureAggregator, mathOperations []*structs.MathEvaluator) {
 	// Use a global variable to store data that meets the conditions during the process of traversing segments
 	runningEvalStats := make(map[string]interface{}, 0)
 	//assuming we will allow 100 measure Operations
@@ -727,7 +745,15 @@ func applyAggOpOnSegments(sortedQSRSlice []*querySegmentRequest, allSegFileResul
 				}
 			}
 		}
-		err = allSegFileResults.UpdateSegmentStats(sstMap, measureOperations, runningEvalStats)
+		if measureOperations != nil {
+			err = allSegFileResults.UpdateSegmentStats(sstMap, measureOperations, runningEvalStats)
+		}
+
+		if mathOperations != nil {
+			err = allSegFileResults.UpdateMathSegementStats(sstMap, mathOperations, runningEvalStats)
+			fmt.Println("allSegFileResults", allSegFileResults)
+		}
+
 		if err != nil {
 			log.Errorf("qid=%d,  applyAggOpOnSegments : ReadSegStats: Failed to update segment stats for segKey %+v! Error: %v", qid, segReq.segKey, err)
 			allSegFileResults.AddError(err)
@@ -746,6 +772,20 @@ func applyAggOpOnSegments(sortedQSRSlice []*querySegmentRequest, allSegFileResul
 	if len(sortedQSRSlice) == 0 {
 		incrementNumFinishedSegments(0, qid, 0, 0, true, nil)
 	}
+}
+
+func applyMathOpOnSegments(sortedQSRSlice []*querySegmentRequest, allSegFileResults *segresults.SearchResults, qid uint64, qs *summary.QuerySummary,
+	searchType structs.SearchNodeType, mathOperations []*structs.MathEvaluator) {
+	// Implement this method
+
+	fmt.Println("applyMathOpOnSegments")
+	fmt.Println("sortedQSRSlice", sortedQSRSlice)
+	fmt.Println("allSegFileResults", allSegFileResults)
+	fmt.Println("qid", qid)
+	fmt.Println("qs", qs)
+	fmt.Println("searchType", searchType)
+	fmt.Println("mathOperations", mathOperations)
+
 }
 
 // return sorted slice of querySegmentRequests, count of raw search requests, distributed queries, and count of pqs request

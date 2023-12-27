@@ -130,6 +130,21 @@ func getAggregationSQL(agg string, qid uint64) utils.AggregateFunctions {
 	}
 }
 
+func getMathEvaluatorSQL(op string, qid uint64) (utils.MathFunctions, error) {
+	op = strings.ToLower(op)
+	switch op {
+	case "round":
+		return utils.Round, nil
+	case "floor":
+		return utils.Floor, nil
+	case "ceil":
+		return utils.Ceil, nil
+	default:
+		log.Errorf("qid=%v, getMathEvaluatorSQL: math evaluator type not supported!", qid)
+		return 0, fmt.Errorf("math evaluator type not supported")
+	}
+}
+
 func getMathFunctionSQL(funcName string, argExprs sqlparser.SelectExprs, qid uint64) (*structs.NumericExpr, error) {
 
 	// Check for 'round' function and handle arguments
@@ -315,6 +330,7 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 	columsArray := make([]string, 0)
 	hardcodedArray := make([]string, 0)
 	mathFunctionCols := make([]*structs.NumericExpr, 0)
+	mathOps := make([]*structs.MathEvaluator, 0)
 	renameCols := map[string]string{}
 	renameHardcodedCols := map[string]string{}
 	var err error
@@ -367,18 +383,35 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 							leftExpr.Val = nil
 
 							measureOp = &structs.MeasureAggregator{MeasureCol: measureCol, MeasureFunc: getAggregationSQL(measureFunc, qid)}
+
+							// mathFunctionCols = append(mathFunctionCols, numericExpr)
+
+							measureOps = append(measureOps, measureOp)
+							newGroupByReq.MeasureOperations = append(newGroupByReq.MeasureOperations, measureOp)
 						}
 					} else {
 
-						leftExpr.Value = "0(" + leftExpr.Value + ")"
+						fmt.Println("Not an aggregate round function")
 
-						measureOp = &structs.MeasureAggregator{MeasureCol: sqlparser.String(agg.Exprs[0])}
+						mathFunc, err := getMathEvaluatorSQL(funcName, qid)
+
+						if err == nil {
+							mathOp := &structs.MathEvaluator{MathCol: sqlparser.String(agg.Exprs), MathFunc: mathFunc, ValueColRequest: &structs.ValueExpr{NumericExpr: numericExpr}}
+							mathOps = append(mathOps, mathOp)
+						} else {
+							log.Errorf("qid=%v, parseSelect: getMathEvaluatorSQL failed! %+v", qid, err)
+							// return astNode, aggNode, columsArray, err
+						}
+
+						// leftExpr.Value = "0(" + leftExpr.Value + ")"
+
+						// measureOp = &structs.MeasureAggregator{MeasureCol: sqlparser.String(agg.Exprs[0])}
 					}
 
 					mathFunctionCols = append(mathFunctionCols, numericExpr)
 
-					measureOps = append(measureOps, measureOp)
-					newGroupByReq.MeasureOperations = append(newGroupByReq.MeasureOperations, measureOp)
+					// measureOps = append(measureOps, measureOp)
+					// newGroupByReq.MeasureOperations = append(newGroupByReq.MeasureOperations, measureOp)
 
 					if len(label) != 0 {
 						renameCols[strings.ToLower(sqlparser.String(agg))] = label
@@ -465,6 +498,36 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 		aggNode.Next.OutputTransforms = &structs.OutputTransforms{LetColumns: &structs.LetColumnsRequest{}}
 		aggNode.Next.OutputTransforms.LetColumns = aggNode.OutputTransforms.LetColumns
 
+		fmt.Println("mathFunctionCols", mathFunctionCols)
+
+	}
+
+	if len(mathOps) > 0 {
+
+		fmt.Println("mathOps", mathOps)
+
+		aggNode.MathOperations = mathOps
+
+		if len(columsArray) == 0 && len(hardcodedArray) == 0 && len(measureOps) == 0 && len(mathFunctionCols) == 0 {
+			aggNode.OutputTransforms = &structs.OutputTransforms{LetColumns: &structs.LetColumnsRequest{}}
+		} else {
+			aggNode.OutputTransforms.LetColumns = &structs.LetColumnsRequest{}
+		}
+
+		aggNode.OutputTransforms.LetColumns.ValueColRequest = &structs.ValueExpr{}
+		numericExprVal := mathOps[0].ValueColRequest.NumericExpr
+		aggNode.OutputTransforms.LetColumns.ValueColRequest.NumericExpr = numericExprVal
+
+		aggNode.OutputTransforms.LetColumns.NewColName = mathOps[0].MathCol
+		aggNode.PipeCommandType = 1
+
+		// aggNode.Next = &structs.QueryAggregators{MathOperations: mathOps}
+
+		// aggNode.Next = &structs.QueryAggregators{OutputTransforms: &structs.OutputTransforms{}}
+		// aggNode.Next.MathOperations = mathOps
+		// aggNode.Next.PipeCommandType = 1
+		// aggNode.Next.OutputTransforms = &structs.OutputTransforms{LetColumns: &structs.LetColumnsRequest{}}
+		// aggNode.Next.OutputTransforms.LetColumns = aggNode.OutputTransforms.LetColumns
 	}
 
 	if aggNode.OutputTransforms != nil && aggNode.OutputTransforms.OutputColumns != nil {

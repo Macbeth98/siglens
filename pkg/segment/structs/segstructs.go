@@ -115,6 +115,7 @@ type QueryAggregators struct {
 	PipeCommandType   PipeCommandType
 	OutputTransforms  *OutputTransforms
 	MeasureOperations []*MeasureAggregator
+	MathOperations    []*MathEvaluator
 	TimeHistogram     *TimeBucket     // Request for time histograms
 	GroupByRequest    *GroupByRequest // groupby aggregation request
 	Sort              *SortRequest    // how to sort resulting data
@@ -161,6 +162,13 @@ type MeasureAggregator struct {
 	MeasureFunc     utils.AggregateFunctions `json:"measureFunc,omitempty"`
 	StrEnc          string                   `json:"strEnc,omitempty"`
 	ValueColRequest *ValueExpr               `json:"valueColRequest,omitempty"`
+}
+
+type MathEvaluator struct {
+	MathCol         string              `json:"mathCol,omitempty"`
+	MathFunc        utils.MathFunctions `json:"mathFunc,omitempty"`
+	StrEnc          string              `json:"strEnc,omitempty"`
+	ValueColRequest *ValueExpr          `json:"valueCol,omitempty"`
 }
 
 type ColumnsRequest struct {
@@ -338,6 +346,15 @@ func (ma *MeasureAggregator) String() string {
 	}
 	ma.StrEnc = fmt.Sprintf("%+v(%v)", ma.MeasureFunc.String(), ma.MeasureCol)
 	return ma.StrEnc
+}
+
+func (me *MathEvaluator) String() string {
+	if me.StrEnc != "" {
+		return me.StrEnc
+	}
+	// me.StrEnc = fmt.Sprintf("%+v(%v)", "", me.MathCol)
+	me.StrEnc = me.MathCol
+	return me.StrEnc
 }
 
 func (ss *SegStats) Merge(other *SegStats) {
