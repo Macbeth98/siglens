@@ -89,6 +89,7 @@ func RawSearchSegmentFileWrapper(req *structs.SegmentSearchRequest, parallelismP
 	}
 
 	if !shouldChunk {
+		fmt.Println("raw search without chunking")
 		rawSearchColumnar(req, searchNode, timeRange, sizeLimit, aggs, parallelismPerFile, allSearchResults, qid, qs)
 		return
 	}
@@ -116,6 +117,7 @@ func RawSearchSegmentFileWrapper(req *structs.SegmentSearchRequest, parallelismP
 			i++
 		}
 		req.AllBlocksToSearch = nm
+		fmt.Println("raw search with chunking")
 		rawSearchColumnar(req, searchNode, timeRange, sizeLimit, aggs, parallelismPerFile, allSearchResults, qid, qs)
 	}
 }
@@ -516,6 +518,7 @@ func extractSortVals(aggs *structs.QueryAggregators, multiColReader *segread.Mul
 		return sortVal, invalidAggsCol
 	}
 
+	fmt.Println("At segsearch.go: extractSortVals")
 	colVal, err := multiColReader.ExtractValueFromColumnFile(aggs.Sort.ColName, blkNum, recNum, qid)
 	if err != nil {
 		invalidAggsCol = true

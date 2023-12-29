@@ -254,6 +254,7 @@ func (mcsr *MultiColSegmentReader) ReadRawRecordFromColumnFile(col string, block
 		copy(retVal[1:], toputils.Uint64ToBytesLittleEndian(ts))
 		return retVal, nil
 	}
+	fmt.Println("ReadRawRecordFromColumnFile: All Columns Reverse Index", mcsr.allColsReverseIndex)
 	keyIndex, ok := mcsr.allColsReverseIndex[col]
 	if !ok {
 		// Debug to avoid log flood for when the column does not exist
@@ -267,6 +268,7 @@ func (mcsr *MultiColSegmentReader) ReadRawRecordFromColumnFile(col string, block
 // Reads the request value and converts it to a *utils.CValueEnclosure
 func (mcsr *MultiColSegmentReader) ExtractValueFromColumnFile(col string, blockNum uint16, recordNum uint16,
 	qid uint64) (*utils.CValueEnclosure, error) {
+	fmt.Println("Extracting from here...ExtractValueFromColumnFile")
 	if col == mcsr.timeStampKey {
 		ts, err := mcsr.GetTimeStampForRecord(blockNum, recordNum, qid)
 		if err != nil {

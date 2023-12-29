@@ -110,7 +110,7 @@ func getQueryType(sNode *structs.SearchNode, aggs *structs.QueryAggregators) (st
 
 	if aggs != nil && aggs.MathOperations != nil && aggs.GroupByRequest == nil {
 		fmt.Println("aggs.MathOperations", aggs.MathOperations)
-		return sNode.NodeType, structs.SegmentStatsCmd
+		// return sNode.NodeType, structs.SegmentStatsCmd
 	}
 
 	return sNode.NodeType, structs.RRCCmd
@@ -474,6 +474,8 @@ func applyFopAllRequests(sortedQSRSlice []*querySegmentRequest, queryInfo *query
 	// If no aggs, early exit at utils.QUERY_EARLY_EXIT_LIMIT
 	// If sort, check if next segkey's time range will overlap with the recent best results
 
+	fmt.Println("applyfopallrequests", len(sortedQSRSlice))
+
 	var agileTreeBuf []byte
 	if config.IsAggregationsEnabled() && queryInfo.qType == structs.GroupByCmd &&
 		queryInfo.sNodeType == structs.MatchAllQuery {
@@ -492,7 +494,14 @@ func applyFopAllRequests(sortedQSRSlice []*querySegmentRequest, queryInfo *query
 			log.Errorf("qid=%d, Failed to get empty segments for pqid %+v! Error: %v", queryInfo.qid, sortedQSRSlice[0].pqid, err)
 		}
 	}
+
+	fmt.Println("allEmptySegsForPqid", allEmptySegsForPqid)
+
 	for idx, segReq := range sortedQSRSlice {
+
+		fmt.Println("segreq:colsTosearch", segReq.colsToSearch)
+		fmt.Println("segreq:aggs", segReq.aggs)
+		fmt.Println(segReq)
 
 		isCancelled, err := checkForCancelledQuery(queryInfo.qid)
 		if err != nil {
@@ -503,6 +512,7 @@ func applyFopAllRequests(sortedQSRSlice []*querySegmentRequest, queryInfo *query
 		}
 		otherAggsPresent, timeAggs := checkAggTypes(segReq.aggs)
 		eeType := allSegFileResults.ShouldSearchSegKey(segReq.segKeyTsRange, segReq.sNode.NodeType, otherAggsPresent, timeAggs)
+		fmt.Println("eeType", eeType)
 		if eeType == segresults.EetEarlyExit {
 			allSegFileResults.SetEarlyExit(true)
 		} else if eeType == segresults.EetMatchAllAggs {
@@ -709,14 +719,20 @@ func applyAggOpOnSegments(sortedQSRSlice []*querySegmentRequest, allSegFileResul
 		aggHasEvalFunc := segReq.aggs.HasValueColRequest()
 		aggHasValuesFunc := segReq.aggs.HasValuesFunc()
 		var sstMap map[string]*structs.SegStats
+
+		fmt.Println("applyAggOnSegementsMNethod...!")
+
 		if searchType == structs.MatchAllQuery && isSegmentFullyEnclosed && !aggHasEvalFunc && !aggHasValuesFunc {
 			sstMap, err = segread.ReadSegStats(segReq.segKey, segReq.qid)
+			fmt.Println("Not Raw, prev fetch...", sstMap["latitude"])
 			if err != nil {
+				fmt.Println("Not Raw, prev fetch... Error", err)
 				log.Errorf("qid=%d,  applyAggOpOnSegments : ReadSegStats: Failed to get segment level stats for segKey %+v! Error: %v", qid, segReq.segKey, err)
 				allSegFileResults.AddError(err)
 				continue
 			}
 		} else {
+			fmt.Println("Fetching RAWWWWRRR")
 			// run through micro index check for block tracker & generate SSR
 			blocksToRawSearch, err := segReq.GetMicroIndexFilter()
 			if err != nil {
@@ -739,6 +755,8 @@ func applyAggOpOnSegments(sortedQSRSlice []*querySegmentRequest, allSegFileResul
 			// rawSearchSSR should be of size 1 or 0
 			for _, req := range rawSearchSSR {
 				sstMap, err = search.RawComputeSegmentStats(req, segReq.parallelismPerFile, segReq.sNode, segReq.segKeyTsRange, segReq.aggs.MeasureOperations, allSegFileResults, qid, qs)
+				fmt.Println("latitude SSTMap:", sstMap["latitude"])
+				fmt.Println("City SSTMap:", sstMap["city"])
 				if err != nil {
 					log.Errorf("qid=%d,  applyAggOpOnSegments : ReadSegStats: Failed to get segment level stats for segKey %+v! Error: %v", qid, segReq.segKey, err)
 					allSegFileResults.AddError(err)
@@ -746,6 +764,7 @@ func applyAggOpOnSegments(sortedQSRSlice []*querySegmentRequest, allSegFileResul
 			}
 		}
 		if measureOperations != nil {
+			fmt.Println("fetching measureOperations")
 			err = allSegFileResults.UpdateSegmentStats(sstMap, measureOperations, runningEvalStats)
 		}
 
@@ -833,6 +852,9 @@ func getAllRotatedSegmentsInQuery(queryInfo *queryInformation, sTime time.Time, 
 }
 
 func applyFilterOperatorSingleRequest(qsr *querySegmentRequest, allSegFileResults *segresults.SearchResults, qs *summary.QuerySummary) error {
+	fmt.Println("applyFilterOperatorSingleRequest")
+	fmt.Println("qsr", qsr)
+	fmt.Println("qsr.sType", qsr.sType)
 	switch qsr.sType {
 	case structs.PQS:
 		return applyFilterOperatorPQSRequest(qsr, allSegFileResults, qs)
@@ -957,6 +979,7 @@ func applyFilterOperatorInternal(allSegFileResults *segresults.SearchResults, al
 	parallelismPerFile int64, searchNode *structs.SearchNode, timeRange *dtu.TimeRange, sizeLimit uint64, aggs *structs.QueryAggregators,
 	qid uint64, qs *summary.QuerySummary) error {
 	for _, req := range allSegRequests {
+		fmt.Println("applyFilterOperatorInternal: req.AllPossibleCols", req.AllPossibleColumns)
 		search.RawSearchSegmentFileWrapper(req, parallelismPerFile, searchNode, timeRange, sizeLimit, aggs, allSegFileResults, qid, qs)
 	}
 

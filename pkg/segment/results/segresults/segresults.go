@@ -301,6 +301,9 @@ func (sr *SearchResults) UpdateSegmentStats(sstMap map[string]*structs.SegStats,
 			}
 		}
 		currSst, ok := sstMap[aggCol]
+		fmt.Println("currSst", currSst)
+		fmt.Println("ok", ok)
+		fmt.Println("measureAgg.ValueColRequest", measureAgg.ValueColRequest)
 		if !ok && measureAgg.ValueColRequest == nil {
 			log.Debugf("applyAggOpOnSegments sstMap was nil for aggCol %v", aggCol)
 			continue
@@ -836,6 +839,8 @@ func (sr *SearchResults) GetAllErrors() []error {
 // returns if the segkey needs to be searched or if we have hit an early exit
 func (sr *SearchResults) ShouldSearchSegKey(tRange *dtu.TimeRange,
 	snt structs.SearchNodeType, otherAggsPresent bool, timeAggs bool) EarlyExitType {
+
+	fmt.Println("sr.queryType", sr.queryType)
 
 	// do we have enough RRCs?
 	if sr.ShouldContinueRRCSearch() {

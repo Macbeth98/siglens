@@ -177,6 +177,8 @@ func ComputeAggEvalForSum(measureAgg *structs.MeasureAggregator, sstMap map[stri
 
 	sumVal := float64(0)
 
+	fmt.Println("Sum: stt.records:", sst.Records)
+
 	for _, eVal := range sst.Records {
 		fieldToValue[fields[0]] = *eVal
 		boolResult, err := measureAgg.ValueColRequest.BooleanExpr.Evaluate(fieldToValue)
@@ -219,6 +221,9 @@ func ComputeMathEvalForRound(mathOp *structs.MathEvaluator, sstMap map[string]*s
 	}
 
 	fmt.Println("fields: ", fields)
+
+	fmt.Println("City:", sstMap["city"])
+	fmt.Println("latitude:", sstMap["latitude"])
 
 	sst, ok := sstMap[fields[0]]
 	if !ok {

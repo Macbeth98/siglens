@@ -43,7 +43,7 @@ func applyAggregationsToResult(aggs *structs.QueryAggregators, segmentSearchReco
 	searchReq *structs.SegmentSearchRequest, blockSummaries []*structs.BlockSummary, queryRange *dtu.TimeRange,
 	sizeLimit uint64, fileParallelism int64, queryMetrics *structs.QueryProcessingMetrics, qid uint64,
 	allSearchResults *segresults.SearchResults) error {
-
+	fmt.Println("applyAggregationsToResult")
 	var blkWG sync.WaitGroup
 	allBlocksChan := make(chan *BlockSearchStatus, fileParallelism)
 	aggCols, _, _ := GetAggColsAndTimestamp(aggs)
@@ -111,6 +111,8 @@ func applyAggregationsSingleBlock(multiReader *segread.MultiColSegmentReader, ag
 	qid uint64, blockSummaries []*structs.BlockSummary, aggsHasTimeHt bool, aggsHasNonTimeHt bool,
 	allBlocksToXRollup map[uint16]map[uint64]*writer.RolledRecs) {
 
+	fmt.Println("applyAggregationsSingleBlock")
+
 	blkResults, err := blockresults.InitBlockResults(sizeLimit, aggs, qid)
 	if err != nil {
 		log.Errorf("applyAggregationsSingleBlock: failed to initialize block results reader for %s. Err: %v", searchReq.SegmentKey, err)
@@ -151,9 +153,11 @@ func applyAggregationsSingleBlock(multiReader *segread.MultiColSegmentReader, ag
 		if blkResults.ShouldIterateRecords(aggsHasTimeHt, isBlkFullyEncosed,
 			blockSummaries[blockStatus.BlockNum].LowTs,
 			blockSummaries[blockStatus.BlockNum].HighTs, addedTimeHt) {
+			fmt.Println("blkResults.ShouldIterateRecords")
 			iterRecsAddRrc(recIT, multiReader, blockStatus, queryRange, aggs, aggsHasTimeHt,
 				addedTimeHt, blkResults, queryMetrics, allSearchResults, searchReq, qid)
 		} else {
+			fmt.Println("blkResults.ShouldIterateRecords else")
 			// we did not iterate the records so now we need to just update the counts, so that early-exit
 			// as well as hit.total has somewhat accurate value
 			rrMc := uint64(recIT.AllRecords.GetNumberOfSetBits())

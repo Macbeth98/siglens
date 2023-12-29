@@ -396,7 +396,7 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 						mathFunc, err := getMathEvaluatorSQL(funcName, qid)
 
 						if err == nil {
-							mathOp := &structs.MathEvaluator{MathCol: sqlparser.String(agg.Exprs), MathFunc: mathFunc, ValueColRequest: &structs.ValueExpr{NumericExpr: numericExpr}}
+							mathOp := &structs.MathEvaluator{MathCol: sqlparser.String(agg.Exprs[0]), MathFunc: mathFunc, ValueColRequest: &structs.ValueExpr{NumericExpr: numericExpr}}
 							mathOps = append(mathOps, mathOp)
 						} else {
 							log.Errorf("qid=%v, parseSelect: getMathEvaluatorSQL failed! %+v", qid, err)
@@ -406,6 +406,11 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 						// leftExpr.Value = "0(" + leftExpr.Value + ")"
 
 						// measureOp = &structs.MeasureAggregator{MeasureCol: sqlparser.String(agg.Exprs[0])}
+						fmt.Println("Column Name", sqlparser.String(agg.Exprs[0]))
+						columsArray = append(columsArray, sqlparser.String(agg.Exprs[0]))
+						if len(label) != 0 {
+							renameCols[sqlparser.String(agg.Exprs[0])] = label
+						}
 					}
 
 					mathFunctionCols = append(mathFunctionCols, numericExpr)
