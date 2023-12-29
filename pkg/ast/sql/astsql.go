@@ -130,35 +130,63 @@ func getAggregationSQL(agg string, qid uint64) utils.AggregateFunctions {
 	}
 }
 
-func getMathFunctionSQL(funcName string, argExprs sqlparser.SelectExprs, qid uint64) (*structs.NumericExpr, error) {
+func getMathEvaluatorSQL(op string, qid uint64) (utils.MathFunctions, error) {
+	op = strings.ToLower(op)
+	switch op {
+	case "round":
+		return utils.Round, nil
+	case "ceil":
+		return utils.Ceil, nil
+	case "abs":
+		return utils.Abs, nil
+	case "sqrt":
+		return utils.Sqrt, nil
+	case "exp":
+		return utils.Exp, nil
+	default:
+		log.Errorf("qid=%v, getMathEvaluatorSQL: math evaluator type not supported!", qid)
+		return 0, fmt.Errorf("math evaluator type not supported")
+	}
+}
+
+func getMathFunctionSQL(funcName string, argExprs sqlparser.SelectExprs, qid uint64) (utils.MathFunctions, *structs.NumericExpr, error) {
+
+	funcName = strings.ToLower(funcName)
+
+	// Get math evaluator
+	mathFunc, err := getMathEvaluatorSQL(funcName, qid)
+	if err != nil {
+		log.Errorf("qid=%v, getMathFunctionSQL: error getting math evaluator! %+v", qid, err)
+		return mathFunc, nil, err
+	}
+
+	if len(argExprs) < 1 || len(argExprs) > 2 {
+		log.Errorf("qid=%v, getMathFunctionSQL: incorrect number of arguments for Math function Evaluators", qid)
+		return mathFunc, nil, fmt.Errorf("incorrect number of arguments for Math function Evaluator")
+	}
+
+	leftExpr, err := convertToNumericExpr(argExprs[0])
+	if err != nil {
+		log.Errorf("qid=%v, getMathFunctionSQL: error converting left expression of round to numeric expression! %+v", qid, err)
+		return mathFunc, nil, err
+	}
+
+	var rightExpr *structs.NumericExpr
 
 	// Check for 'round' function and handle arguments
-	if strings.ToLower(funcName) == "round" {
-		if len(argExprs) < 1 || len(argExprs) > 2 {
-			log.Errorf("qid=%v, getMathFunctionSQL: incorrect number of arguments for ROUND function", qid)
-			return nil, fmt.Errorf("incorrect number of arguments for ROUND function")
-		}
-
-		leftExpr, err := convertToNumericExpr(argExprs[0])
-		if err != nil {
-			log.Errorf("qid=%v, getMathFunctionSQL: error converting left expression of round to numeric expression! %+v", qid, err)
-			return nil, err
-		}
-
-		var rightExpr *structs.NumericExpr
+	if mathFunc == utils.Round {
 		if len(argExprs) == 2 {
 			rightExpr, err = convertToNumericExpr(argExprs[1])
 			if err != nil {
 				log.Errorf("qid=%v, getMathFunctionSQL: error converting right expression of round to numeric expression! %+v", qid, err)
-				return nil, err
+				return mathFunc, nil, err
 			}
 		}
-
-		return createNumericExpr("round", leftExpr, rightExpr, structs.NEMNumericExpr)
-	} else {
-		log.Errorf("qid=%v, getMathFunctionSQL: function %s not supported!", qid, funcName)
-		return nil, fmt.Errorf("function %s not supported", funcName)
 	}
+
+	numericExpr, err := createNumericExpr(funcName, leftExpr, rightExpr, structs.NEMNumericExpr)
+
+	return mathFunc, numericExpr, err
 }
 
 func convertToNumericExpr(expr any) (*structs.NumericExpr, error) {
@@ -347,12 +375,9 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 
 				funcName := strings.ToLower(agg.Name.CompliantName())
 
-				if funcName == "round" {
-					numericExpr, err := getMathFunctionSQL(funcName, agg.Exprs, qid)
-					if err != nil {
-						log.Errorf("qid=%v, parseSelect: getMathFunctionSQL failed! %+v", qid, err)
-						return astNode, aggNode, columsArray, err
-					}
+				mathFunc, numericExpr, err := getMathFunctionSQL(funcName, agg.Exprs, qid)
+
+				if mathFunc > 0 && numericExpr != nil && err == nil {
 
 					leftExpr := numericExpr.Left
 
@@ -367,8 +392,13 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 							leftExpr.Val = nil
 
 							measureOp = &structs.MeasureAggregator{MeasureCol: measureCol, MeasureFunc: getAggregationSQL(measureFunc, qid)}
+
+							measureOps = append(measureOps, measureOp)
+							newGroupByReq.MeasureOperations = append(newGroupByReq.MeasureOperations, measureOp)
 						}
 					} else {
+
+						fmt.Println("Not an aggregate round function")
 
 						leftExpr.Value = "0(" + leftExpr.Value + ")" // "0" for round function, as it is a default case for aggregation.
 
@@ -376,9 +406,6 @@ func parseSelect(astNode *structs.ASTNode, aggNode *structs.QueryAggregators, cu
 					}
 
 					mathFunctionCols = append(mathFunctionCols, numericExpr)
-
-					measureOps = append(measureOps, measureOp)
-					newGroupByReq.MeasureOperations = append(newGroupByReq.MeasureOperations, measureOp)
 
 				} else {
 
