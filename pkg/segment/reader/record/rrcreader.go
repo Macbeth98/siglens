@@ -424,7 +424,7 @@ func GetJsonFromAllRrc(allrrc []*utils.RecordResultContainer, esResponse bool, q
 	}
 
 	finalRecords, colsSlice := finalizeRecords(allRecords, finalCols, colsIndexMap, numProcessedRecords, recsAggRecords, transactionArgsExist)
-	log.Infof("qid=%d, GetJsonFromAllRrc: Got %v raw records from files in %+v", qid, len(finalRecords), time.Since(sTime))
+	log.Infof("qid=%d, GetJsonFromAllRrc: Got %v raw records from files in %+v, len(segmap)=%v", qid, len(finalRecords), time.Since(sTime), len(segmap))
 
 	return finalRecords, colsSlice, nil
 }
