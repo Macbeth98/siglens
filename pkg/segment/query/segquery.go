@@ -482,6 +482,7 @@ func applyFopAllRequests(sortedQSRSlice []*QuerySegmentRequest, queryInfo *Query
 			doAgileTree, str := canUseAgileTree(segReq, queryInfo)
 
 			if doAgileTree {
+				log.Infof("qid=%d, Using agile tree for segKey %v", queryInfo.qid, segReq.segKey)
 				sTime := time.Now()
 
 				if limitAgileAggsTreeBuckets {
