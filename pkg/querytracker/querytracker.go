@@ -58,7 +58,7 @@ var groupByOverrideLock = sync.RWMutex{}
 var localPersistentAggs = map[string]*PersistentAggregation{} // map[pqid] ==> *PersistentAggregation
 var allPersistentAggsSorted = []*PersistentAggregation{}
 var localGroupByOverride = map[string]*PersistentGroupBy{}
-var staticGroupBycols = []string{"app_name", "http_method", "hobby", "city", "gender", "user_email", "zip", "http_status", "weekday", "latitude"}
+var staticGroupBycols = []string{"http_method", "hobby", "gender", "http_status", "weekday"}
 var staticMeasureCols = map[string]bool{
 	"latency":     true,
 	"http_status": true,
