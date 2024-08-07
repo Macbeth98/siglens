@@ -58,6 +58,13 @@ var groupByOverrideLock = sync.RWMutex{}
 var localPersistentAggs = map[string]*PersistentAggregation{} // map[pqid] ==> *PersistentAggregation
 var allPersistentAggsSorted = []*PersistentAggregation{}
 var localGroupByOverride = map[string]*PersistentGroupBy{}
+var staticGroupBycols = []string{"app_name", "http_method", "hobby", "city", "gender", "user_email", "zip", "http_status", "weekday", "latitude"}
+var staticMeasureCols = map[string]bool{
+	"latency":     true,
+	"http_status": true,
+	"latitude":    true,
+	"longitude":   true,
+}
 
 type PersistentSearchNode struct {
 	SearchNode *structs.SearchNode
@@ -216,6 +223,11 @@ type colUsage struct {
 func GetTopPersistentAggs(table string) ([]string, map[string]bool) {
 	groupByColsUsage := make(map[string]int)
 	measureInfoUsage := make(map[string]bool)
+
+	if len(staticGroupBycols) > 0 && len(staticMeasureCols) > 0 {
+		log.Infof("GetTopPersistentAggs: returning static groupbycols=%v, measurecols=%v", staticGroupBycols, staticMeasureCols)
+		return staticGroupBycols, staticMeasureCols
+	}
 
 	if !config.IsPQSEnabled() {
 		return []string{}, measureInfoUsage
