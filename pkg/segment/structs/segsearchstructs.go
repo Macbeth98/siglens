@@ -140,7 +140,7 @@ type CmiContainer struct {
 
 // even if only one block will be searched and parallelism=10, we will spawn 10 buffers, although 9 wont be used
 // TODO: more accurate block summaries and colmeta sizing
-func (ssr *SegmentSearchRequest) GetMaxSearchMemorySize(sNode *SearchNode, parallelismPerFile int64, bitsetMinSize uint16) uint64 {
+func (ssr *SegmentSearchRequest) GetMaxSearchMemorySize(parallelismPerFile int64, bitsetMinSize uint16) uint64 {
 
 	// bitset size worst case is min(15000*num blocks, total record count)
 	var totalBits uint64
@@ -326,11 +326,12 @@ func getSearchInputFromFilterInput(filter *FilterInput, qid uint64) *SearchExpre
 }
 
 func GetSearchQueryFromFilterCriteria(criteria *FilterCriteria, qid uint64) *SearchQuery {
+	var sq *SearchQuery
 
 	if criteria.MatchFilter != nil {
-		return extractSearchQueryFromMatchFilter(criteria.MatchFilter)
+		sq = extractSearchQueryFromMatchFilter(criteria.MatchFilter)
 	} else {
-		sq := extractSearchQueryFromExpressionFilter(criteria.ExpressionFilter, qid)
+		sq = extractSearchQueryFromExpressionFilter(criteria.ExpressionFilter, qid)
 
 		var colVal *DtypeEnclosure
 		if sq.ExpressionFilter.LeftSearchInput.ColumnValue != nil {
@@ -342,8 +343,9 @@ func GetSearchQueryFromFilterCriteria(criteria *FilterCriteria, qid uint64) *Sea
 		if colVal != nil && colVal.Dtype == SS_DT_STRING && colVal.StringVal == "*" {
 			sq.SearchType = MatchAll
 		}
-		return sq
 	}
+	sq.FilterIsCaseSensitive = criteria.FilterIsCaseSensitive
+	return sq
 }
 
 func extractSearchQueryFromMatchFilter(match *MatchFilter) *SearchQuery {
